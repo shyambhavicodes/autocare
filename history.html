@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity History | AutoCare</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <nav>
+        <div class="container nav-content">
+            <a href="index.html" class="logo">
+                <i data-lucide="shield-check"></i>
+                AutoCare
+            </a>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="booking.html">Booking</a>
+                <a href="store.html">Store</a>
+                <a href="history.html" class="active">History</a>
+                <a href="admin.html">Admin</a>
+            </div>
+            <div class="nav-actions">
+                <button id="theme-toggle" class="btn btn-secondary"></button>
+                <button class="btn btn-primary cart-btn" onclick="openModal('cart-modal')">
+                    <i data-lucide="shopping-cart"></i>
+                    <span class="cart-count">0</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container" style="padding-top: 120px; padding-bottom: 80px;">
+        <div class="section-title">
+            <h2>Your History</h2>
+            <p class="text-secondary">Track your service bookings and store orders.</p>
+        </div>
+
+        <div class="grid" style="grid-template-columns: 1fr; gap: 40px;">
+            <section>
+                <h3>Service History</h3>
+                <div id="bookings-history" class="mt-4">
+                    <!-- History will be injected here -->
+                </div>
+            </section>
+
+            <section>
+                <h3>Order History</h3>
+                <div id="orders-list" class="mt-4">
+                    <!-- Orders will be injected here -->
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Cart Modal -->
+    <div id="cart-modal" class="modal-overlay">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal('cart-modal')">&times;</span>
+            <h2 class="mb-4">Your Cart</h2>
+            <div id="cart-items"></div>
+            <div class="mt-4 pt-4" style="border-top: 1px solid var(--border)">
+                <div class="flex justify-between items-center mb-4">
+                    <h3>Total:</h3>
+                    <h3 id="cart-total">$0.00</h3>
+                </div>
+                <button class="btn btn-primary w-full" onclick="checkout()" style="display: block; width: 100%; text-align: center;">Checkout</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        lucide.createIcons();
+        window.addEventListener('load', () => {
+            renderBookings('bookings-history', 'history');
+            renderOrders();
+            renderCart();
+        });
+    </script>
+</body>
+</html>
