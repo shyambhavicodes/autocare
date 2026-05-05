@@ -6,23 +6,37 @@ const DEFAULT_PRODUCTS = [
     { id: 5, name: 'Leather Deep Cleaning Kit', price: 45.50, image: 'https://images.unsplash.com/photo-1607860108855-64acf2078ed9?auto=format&fit=crop&q=80&w=400', category: 'Detailing' }
 ];
 
-const getLocal = (key, fallback = []) => JSON.parse(localStorage.getItem(key)) || fallback;
+const getLocal = (key, fallback = []) => {
+    try {
+        const data = JSON.parse(localStorage.getItem(key));
+        return Array.isArray(data) ? data : fallback;
+    } catch {
+        return fallback;
+    }
+};
+
 const setLocal = (key, val) => localStorage.setItem(key, JSON.stringify(val));
+
+/* ---------- IMPORTANT FIX ---------- */
+// start fresh if corrupted
+if (!localStorage.getItem('autocare_bookings')) {
+    localStorage.setItem('autocare_bookings', JSON.stringify([]));
+}
 
 let bookings = getLocal('autocare_bookings');
 let products = getLocal('autocare_products', DEFAULT_PRODUCTS);
 let orders = getLocal('autocare_orders');
 let cart = getLocal('autocare_cart', []);
-let theme = localStorage.getItem('autocare_theme') || 'dark';
 
-/* ---------- FIX: ALWAYS REMOVE DUPLICATES ---------- */
-function cleanBookings() {
-    const map = new Map();
-    bookings.forEach(b => {
-        if (b && b.id) map.set(b.id, b);
-    });
-    bookings = Array.from(map.values());
-    setLocal('autocare_bookings', bookings);
+/* ---------- VALID BOOKING CHECK ---------- */
+function isValidBooking(b) {
+    return b &&
+        b.id &&
+        b.name &&
+        b.phone &&
+        b.carModel &&
+        b.date &&
+        b.serviceType;
 }
 
 /* ---------- BOOKING ---------- */
@@ -30,10 +44,9 @@ function handleBooking(event) {
     event.preventDefault();
 
     const formData = new FormData(event.target);
-    const id = formData.get('bookingId') || Date.now().toString();
 
     const bookingData = {
-        id,
+        id: Date.now().toString(),
         name: formData.get('name'),
         phone: formData.get('phone'),
         carModel: formData.get('carModel'),
@@ -44,15 +57,7 @@ function handleBooking(event) {
         createdAt: new Date().toISOString()
     };
 
-    const index = bookings.findIndex(b => b.id === id);
-
-    if (index !== -1) {
-        bookings[index] = bookingData;
-    } else {
-        bookings.push(bookingData);
-    }
-
-    cleanBookings(); // 🔥 IMPORTANT FIX
+    bookings = [bookingData]; // ONLY ONE VALID BOOKING
 
     setLocal('autocare_bookings', bookings);
 
@@ -65,9 +70,7 @@ function renderBookings(containerId, type = 'all') {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    cleanBookings(); // 🔥 safety
-
-    let list = [...bookings];
+    let list = bookings.filter(isValidBooking);
 
     if (type === 'pending') {
         list = list.filter(b => b.status === 'pending');
@@ -77,98 +80,31 @@ function renderBookings(containerId, type = 'all') {
         list = list.filter(b => b.status !== 'pending');
     }
 
-    container.innerHTML = "";
-
-    if (list.length === 0) {
-        container.innerHTML = '<div class="card"><p>No bookings found.</p></div>';
-        return;
-    }
-
     list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    container.innerHTML = list.map(b => `
-        <div class="card">
-            <h3>${b.carModel} - ${b.serviceType}</h3>
-            <p>${b.date} at ${b.time}</p>
-            <p>Status: ${b.status}</p>
-
-            ${b.status === 'pending' ? `
-                <button onclick="editBooking('${b.id}')">Edit</button>
-                <button onclick="cancelBooking('${b.id}')">Cancel</button>
-            ` : ''}
-        </div>
-    `).join('');
-
-    if (window.lucide) lucide.createIcons();
+    container.innerHTML = list.length
+        ? list.map(b => `
+            <div class="card">
+                <h3>${b.carModel} - ${b.serviceType}</h3>
+                <p>${b.date} at ${b.time}</p>
+                <p>Status: ${b.status}</p>
+            </div>
+        `).join('')
+        : '<div class="card"><p>No bookings found.</p></div>';
 }
 
-/* ---------- HISTORY FIX (NEW CLEAN FUNCTION) ---------- */
+/* ---------- HISTORY ---------- */
 function renderHistory() {
     renderBookings('bookings-history', 'history');
 }
 
-/* ---------- CANCEL ---------- */
-function cancelBooking(id) {
-    const b = bookings.find(x => x.id === id);
-    if (b) b.status = 'cancelled';
-
-    setLocal('autocare_bookings', bookings);
-    renderHistory();
-}
-
-/* ---------- EDIT ---------- */
-function editBooking(id) {
-    const booking = bookings.find(b => b.id === id);
-    const form = document.querySelector('#booking-form');
-
-    openModal('booking-modal');
-
-    form.bookingId.value = booking.id;
-    form.name.value = booking.name;
-    form.phone.value = booking.phone;
-    form.carModel.value = booking.carModel;
-    form.serviceType.value = booking.serviceType;
-    form.date.value = booking.date;
-    form.time.value = booking.time;
-}
-
-/* ---------- STORE ---------- */
-function renderStore() {
-    const container = document.getElementById('products-grid');
-    if (!container) return;
-
-    container.innerHTML = products.map(p => `
-        <div class="card">
-            <h3>${p.name}</h3>
-            <p>$${p.price}</p>
-            <button onclick="addToCart(${p.id})">Add</button>
-        </div>
-    `).join('');
-}
-
-function addToCart(id) {
-    const product = products.find(p => p.id === id);
-    const existing = cart.find(i => i.id === id);
-
-    if (existing) existing.quantity++;
-    else cart.push({ ...product, quantity: 1 });
-
-    setLocal('autocare_cart', cart);
-}
-
 /* ---------- INIT ---------- */
 document.addEventListener('DOMContentLoaded', () => {
-    cleanBookings();
-
     if (location.pathname.includes('booking.html')) {
         renderBookings('bookings-list', 'all');
     }
 
     if (location.pathname.includes('history.html')) {
         renderHistory();
-    }
-
-    if (location.pathname.includes('store.html')) {
-        renderStore();
     }
 });
