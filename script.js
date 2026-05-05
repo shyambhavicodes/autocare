@@ -17,18 +17,13 @@ const getLocal = (key, fallback = []) => {
 
 const setLocal = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 
-/* ---------- IMPORTANT FIX ---------- */
-// start fresh if corrupted
-if (!localStorage.getItem('autocare_bookings')) {
-    localStorage.setItem('autocare_bookings', JSON.stringify([]));
-}
-
+/* ---------- FIX 1: ALWAYS SAFE INIT ---------- */
 let bookings = getLocal('autocare_bookings');
 let products = getLocal('autocare_products', DEFAULT_PRODUCTS);
 let orders = getLocal('autocare_orders');
 let cart = getLocal('autocare_cart', []);
 
-/* ---------- VALID BOOKING CHECK ---------- */
+/* ---------- FIX 2: VALID BOOKING CHECK ---------- */
 function isValidBooking(b) {
     return b &&
         b.id &&
@@ -36,10 +31,11 @@ function isValidBooking(b) {
         b.phone &&
         b.carModel &&
         b.date &&
-        b.serviceType;
+        b.serviceType &&
+        b.createdAt;
 }
 
-/* ---------- BOOKING ---------- */
+/* ---------- FIX 3: SAVE BOOKING (REAL HISTORY SYSTEM) ---------- */
 function handleBooking(event) {
     event.preventDefault();
 
@@ -57,15 +53,19 @@ function handleBooking(event) {
         createdAt: new Date().toISOString()
     };
 
-    bookings = [bookingData]; // ONLY ONE VALID BOOKING
+    // ✅ FIX: append instead of replace
+    bookings.push(bookingData);
 
     setLocal('autocare_bookings', bookings);
 
     event.target.reset();
-    renderBookings('bookings-list', 'all');
+
+    if (location.pathname.includes('booking.html')) {
+        renderBookings('bookings-list', 'all');
+    }
 }
 
-/* ---------- RENDER BOOKINGS ---------- */
+/* ---------- FIX 4: RENDER BOOKINGS ---------- */
 function renderBookings(containerId, type = 'all') {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -100,6 +100,7 @@ function renderHistory() {
 
 /* ---------- INIT ---------- */
 document.addEventListener('DOMContentLoaded', () => {
+
     if (location.pathname.includes('booking.html')) {
         renderBookings('bookings-list', 'all');
     }
