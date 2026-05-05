@@ -17,13 +17,16 @@ const getLocal = (key, fallback = []) => {
 
 const setLocal = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 
-/* ---------- FIX 1: ALWAYS SAFE INIT ---------- */
+/* ---------- FIX 1: CLEAN STORAGE ON LOAD ---------- */
+if (!localStorage.getItem('autocare_bookings')) {
+    localStorage.setItem('autocare_bookings', JSON.stringify([]));
+}
+
+/* ---------- DATA ---------- */
 let bookings = getLocal('autocare_bookings');
 let products = getLocal('autocare_products', DEFAULT_PRODUCTS);
-let orders = getLocal('autocare_orders');
-let cart = getLocal('autocare_cart', []);
 
-/* ---------- FIX 2: VALID BOOKING CHECK ---------- */
+/* ---------- VALIDATION ---------- */
 function isValidBooking(b) {
     return b &&
         b.id &&
@@ -35,7 +38,7 @@ function isValidBooking(b) {
         b.createdAt;
 }
 
-/* ---------- FIX 3: SAVE BOOKING (REAL HISTORY SYSTEM) ---------- */
+/* ---------- BOOKING (ONLY SAVE DATA) ---------- */
 function handleBooking(event) {
     event.preventDefault();
 
@@ -53,31 +56,25 @@ function handleBooking(event) {
         createdAt: new Date().toISOString()
     };
 
-    // ✅ FIX: append instead of replace
+    // keep only real user bookings
     bookings.push(bookingData);
 
     setLocal('autocare_bookings', bookings);
 
     event.target.reset();
 
-    if (location.pathname.includes('booking.html')) {
-        renderBookings('bookings-list', 'all');
-    }
+    alert("Booking saved successfully!");
 }
 
-/* ---------- FIX 4: RENDER BOOKINGS ---------- */
+/* ---------- RENDER BOOKINGS ---------- */
 function renderBookings(containerId, type = 'all') {
     const container = document.getElementById(containerId);
     if (!container) return;
 
     let list = bookings.filter(isValidBooking);
 
-    if (type === 'pending') {
-        list = list.filter(b => b.status === 'pending');
-    }
-
     if (type === 'history') {
-        list = list.filter(b => b.status !== 'pending');
+        list = list.filter(b => b.status === 'pending' || b.status === 'cancelled');
     }
 
     list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -101,8 +98,9 @@ function renderHistory() {
 /* ---------- INIT ---------- */
 document.addEventListener('DOMContentLoaded', () => {
 
+    // IMPORTANT: booking page must NOT render anything
     if (location.pathname.includes('booking.html')) {
-        renderBookings('bookings-list', 'all');
+        // DO NOTHING → only form
     }
 
     if (location.pathname.includes('history.html')) {
