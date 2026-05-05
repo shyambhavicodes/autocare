@@ -12,99 +12,62 @@ const setLocal = (key, val) => localStorage.setItem(key, JSON.stringify(val));
 let bookings = getLocal('autocare_bookings');
 let products = getLocal('autocare_products', DEFAULT_PRODUCTS);
 let orders = getLocal('autocare_orders');
-let cart = getLocal('autocare_cart');
+let cart = getLocal('autocare_cart', []);
 let theme = localStorage.getItem('autocare_theme') || 'dark';
 
-// --- THEME ---
-function initTheme() {
-    document.documentElement.setAttribute('data-theme', theme);
-    const themeBtn = document.getElementById('theme-toggle');
-    if (themeBtn) {
-        themeBtn.innerHTML = theme === 'dark'
-            ? '<i class="lucide-sun"></i>'
-            : '<i class="lucide-moon"></i>';
-        themeBtn.onclick = toggleTheme;
-    }
-}
-
-function toggleTheme() {
-    theme = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('autocare_theme', theme);
-}
-
-// --- NAV ---
-function initNav() {
-    const currentPage = window.location.pathname.split('/').pop() || 'index.html';
-    document.querySelectorAll('.nav-links a').forEach(link => {
-        if (link.getAttribute('href').includes(currentPage)) {
-            link.classList.add('active');
-        }
+/* ---------- FIX: ALWAYS REMOVE DUPLICATES ---------- */
+function cleanBookings() {
+    const map = new Map();
+    bookings.forEach(b => {
+        if (b && b.id) map.set(b.id, b);
     });
-
-    const menuToggle = document.querySelector('.menu-toggle');
-    const navLinks = document.querySelector('.nav-links');
-    if (menuToggle && navLinks) {
-        menuToggle.onclick = () => navLinks.classList.toggle('active');
-    }
-
-    updateCartBadge();
+    bookings = Array.from(map.values());
+    setLocal('autocare_bookings', bookings);
 }
 
-// --- TOAST ---
-function showToast(message) {
-    alert(message);
-}
-
-// --- BOOKING ---
+/* ---------- BOOKING ---------- */
 function handleBooking(event) {
     event.preventDefault();
 
     const formData = new FormData(event.target);
-    const id = formData.get('bookingId');
+    const id = formData.get('bookingId') || Date.now().toString();
 
     const bookingData = {
-        id: id || Date.now().toString(),
+        id,
         name: formData.get('name'),
         phone: formData.get('phone'),
         carModel: formData.get('carModel'),
         serviceType: formData.get('serviceType'),
         date: formData.get('date'),
-        time: formData.get('time') || "Not selected",   // FIXED
+        time: formData.get('time') || "Not selected",
         status: 'pending',
         createdAt: new Date().toISOString()
     };
 
-    if (id) {
-        const index = bookings.findIndex(b => b.id === id);
-        bookings[index] = { ...bookings[index], ...bookingData };
-        showToast('Booking updated successfully!');
-    } else {
-        // FIX: prevent duplicate save
-        const exists = bookings.find(b => b.id === bookingData.id);
-        if (!exists) bookings.push(bookingData);
+    const index = bookings.findIndex(b => b.id === id);
 
-        showToast('Booking submitted successfully!');
+    if (index !== -1) {
+        bookings[index] = bookingData;
+    } else {
+        bookings.push(bookingData);
     }
+
+    cleanBookings(); // 🔥 IMPORTANT FIX
 
     setLocal('autocare_bookings', bookings);
 
     event.target.reset();
-
-    if (window.location.pathname.includes('booking.html')) {
-        renderBookings('bookings-list', 'all');
-    }
+    renderBookings('bookings-list', 'all');
 }
 
-// --- FIXED RENDER (MAIN FIX) ---
-function renderBookings(containerId = 'bookings-list', type = 'all') {
+/* ---------- RENDER BOOKINGS ---------- */
+function renderBookings(containerId, type = 'all') {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // remove duplicates (IMPORTANT FIX)
-    const uniqueMap = new Map();
-    bookings.forEach(b => uniqueMap.set(b.id, b));
-    let list = Array.from(uniqueMap.values());
+    cleanBookings(); // 🔥 safety
+
+    let list = [...bookings];
 
     if (type === 'pending') {
         list = list.filter(b => b.status === 'pending');
@@ -114,66 +77,68 @@ function renderBookings(containerId = 'bookings-list', type = 'all') {
         list = list.filter(b => b.status !== 'pending');
     }
 
+    container.innerHTML = "";
+
     if (list.length === 0) {
-        container.innerHTML = '<div class="card"><p class="text-secondary">No bookings found.</p></div>';
+        container.innerHTML = '<div class="card"><p>No bookings found.</p></div>';
         return;
     }
 
-    container.innerHTML = list
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .map(b => `
-        <div class="card flex justify-between items-center mt-4">
-            <div>
-                <h3>${b.carModel} - ${b.serviceType}</h3>
-                <p class="text-secondary">${b.date} at ${b.time} | For: ${b.name}</p>
-                <span class="badge badge-${b.status}">${b.status}</span>
-            </div>
+    list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-            <div class="flex gap-2">
-                ${b.status === 'pending' ? `
-                    <button class="btn btn-secondary" onclick="editBooking('${b.id}')">Edit</button>
-                    <button class="btn btn-secondary" style="color:red" onclick="cancelBooking('${b.id}')">Cancel</button>
-                ` : ''}
-            </div>
+    container.innerHTML = list.map(b => `
+        <div class="card">
+            <h3>${b.carModel} - ${b.serviceType}</h3>
+            <p>${b.date} at ${b.time}</p>
+            <p>Status: ${b.status}</p>
+
+            ${b.status === 'pending' ? `
+                <button onclick="editBooking('${b.id}')">Edit</button>
+                <button onclick="cancelBooking('${b.id}')">Cancel</button>
+            ` : ''}
         </div>
     `).join('');
 
     if (window.lucide) lucide.createIcons();
 }
 
-// --- CANCEL ---
-function cancelBooking(id) {
-    const index = bookings.findIndex(b => b.id === id);
-    bookings[index].status = 'cancelled';
-    setLocal('autocare_bookings', bookings);
-    renderBookings('bookings-list', 'history');
+/* ---------- HISTORY FIX (NEW CLEAN FUNCTION) ---------- */
+function renderHistory() {
+    renderBookings('bookings-history', 'history');
 }
 
-// --- EDIT ---
+/* ---------- CANCEL ---------- */
+function cancelBooking(id) {
+    const b = bookings.find(x => x.id === id);
+    if (b) b.status = 'cancelled';
+
+    setLocal('autocare_bookings', bookings);
+    renderHistory();
+}
+
+/* ---------- EDIT ---------- */
 function editBooking(id) {
     const booking = bookings.find(b => b.id === id);
     const form = document.querySelector('#booking-form');
-    if (!form) return;
 
     openModal('booking-modal');
 
-    form.querySelector('[name="bookingId"]').value = booking.id;
-    form.querySelector('[name="name"]').value = booking.name;
-    form.querySelector('[name="phone"]').value = booking.phone;
-    form.querySelector('[name="carModel"]').value = booking.carModel;
-    form.querySelector('[name="serviceType"]').value = booking.serviceType;
-    form.querySelector('[name="date"]').value = booking.date;
-    form.querySelector('[name="time"]').value = booking.time;
+    form.bookingId.value = booking.id;
+    form.name.value = booking.name;
+    form.phone.value = booking.phone;
+    form.carModel.value = booking.carModel;
+    form.serviceType.value = booking.serviceType;
+    form.date.value = booking.date;
+    form.time.value = booking.time;
 }
 
-// --- STORE ---
+/* ---------- STORE ---------- */
 function renderStore() {
     const container = document.getElementById('products-grid');
     if (!container) return;
 
     container.innerHTML = products.map(p => `
-        <div class="card product-card">
-            <img src="${p.image}" class="product-img">
+        <div class="card">
             <h3>${p.name}</h3>
             <p>$${p.price}</p>
             <button onclick="addToCart(${p.id})">Add</button>
@@ -189,35 +154,21 @@ function addToCart(id) {
     else cart.push({ ...product, quantity: 1 });
 
     setLocal('autocare_cart', cart);
-    updateCartBadge();
 }
 
-// --- CART ---
-function updateCartBadge() {
-    const badge = document.querySelector('.cart-count');
-    if (!badge) return;
-
-    const total = cart.reduce((s, i) => s + i.quantity, 0);
-    badge.innerText = total;
-    badge.style.display = total > 0 ? 'block' : 'none';
-}
-
-// --- INIT ---
+/* ---------- INIT ---------- */
 document.addEventListener('DOMContentLoaded', () => {
-    initTheme();
-    initNav();
+    cleanBookings();
 
-    const path = window.location.pathname;
-
-    if (path.includes('booking.html')) {
+    if (location.pathname.includes('booking.html')) {
         renderBookings('bookings-list', 'all');
     }
 
-    if (path.includes('history.html')) {
-        renderBookings('bookings-list', 'history');
+    if (location.pathname.includes('history.html')) {
+        renderHistory();
     }
 
-    if (path.includes('store.html')) {
+    if (location.pathname.includes('store.html')) {
         renderStore();
     }
 });

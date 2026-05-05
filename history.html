@@ -31,7 +31,7 @@
             <p class="text-secondary">View your past bookings and maintenance records.</p>
         </div>
 
-    
+        <!-- ✅ DO NOT CHANGE THIS (your UI stays same) -->
         <div id="bookings-history" class="grid grid-3"></div>
         <div id="orders-list"></div>
     </main>
@@ -41,10 +41,11 @@
         lucide.createIcons();
 
         window.addEventListener('load', () => {
-            if (typeof renderHistory === "function") {
-                renderHistory();
+            // ✅ SAFE FIX (prevents duplicate / missing function issue)
+            if (typeof renderBookings === "function") {
+                renderBookings('bookings-history', 'history');
             } else {
-                console.error("renderHistory not found");
+                console.error("renderBookings not found");
             }
         });
     </script>
